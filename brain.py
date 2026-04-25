@@ -1,75 +1,104 @@
 import os
 import json
 from groq import Groq
-from dotenv import load_dotenv
 from config import PILLAR_CONFIG
-
-load_dotenv()
 
 class AI_Brain:
     def __init__(self):
-        self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        # We initialize without a key; it will be set per-request from the UI
+        self.client = None
         self.history_file = "history.json"
 
     def _load_history(self):
+        """Loads the history of seed ideas to prevent repetition."""
         if os.path.exists(self.history_file):
-            with open(self.history_file, "r") as f:
-                return json.load(f)
-        return []
+            try:
+                with open(self.history_file, "r") as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
 
-    def _save_history(self, idea):
+    def _save_history(self, pillar_key, idea):
+        """Saves the latest idea to the specific pillar in history.json."""
         history = self._load_history()
-        history.append(idea)
+        if pillar_key not in history:
+            history[pillar_key] = []
+        
+        history[pillar_key].append(idea)
+        
+        # Keep only the last 20 ideas to save space
+        history[pillar_key] = history[pillar_key][-20:]
+        
         with open(self.history_file, "w") as f:
             json.dump(history, f, indent=4)
 
-    def generate_detailed_prompt(self, pillar_key, seed_idea):
+    def generate_detailed_prompt(self, pillar_key, seed_idea, user_key):
+        """
+        Connects to Groq using the key provided from the Frontend
+        and expands the seed idea into a 500+ word technical prompt.
+        """
+        # 1. Setup the Groq Client with the temporary key
+        try:
+            self.client = Groq(api_key=user_key)
+        except Exception as e:
+            return f"Error: Invalid Groq Key provided. {str(e)}"
+
+        # 2. Get Pillar Data from Config
         pillar = PILLAR_CONFIG.get(pillar_key)
-        history = self._load_history()
-        
-        # The System Instruction: This forces the 500-word technical depth
+        if not pillar:
+            return "Error: Pillar not found in config."
+
+        # 3. Get History for this pillar to avoid repeats
+        full_history = self._load_history()
+        pillar_history = full_history.get(pillar_key, [])
+
+        # 4. Construct the Master System Instruction
         system_msg = f"""
-        You are a Technical Cinematographer and Senior AI Prompt Engineer for LTX-Video.
-        Your goal is to generate an EXTREMELY DETAILED (minimum 500 words) video generation prompt.
+        You are a Senior AI Cinematographer and Prompt Engineer for LTX-Video.
+        Your task is to write an EXTREMELY DETAILED technical video prompt (Minimum 500 words).
         
-        STRICT FORMATTING RULES:
-        1. CHARACTER DNA: Describe the subject using: {pillar['character']}
-        2. CAMERA: Use specific lens kits and movements: {pillar['camera']}
-        3. LIGHTING: Describe ray-tracing, global illumination, rim lights, and light temperatures.
-        4. TEXTURES: Describe PBR materials, subsurface scattering, and micro-details.
-        5. STORY LOGIC: Follow the {pillar['logic']} structure.
+        CHARACTER DNA: {pillar['character']}
+        CAMERA SYSTEM: {pillar['camera']}
+        STORY LOGIC: {pillar['logic']}
         
-        REFERENCE EXAMPLES FOR STYLE:
+        TECHNICAL REQUIREMENTS:
+        - Use cinematic language (e.g., Fresnel reflections, subsurface scattering, focal length).
+        - Describe the environment, lighting temperatures (in Kelvin), and texture maps.
+        - The prompt must cover a 24-hour arc (Start, Struggle, Resolution).
+        - Do NOT include any introductory text like 'Here is your prompt'. 
+        - Provide ONLY the descriptive prompt block.
+
+        REFERENCE EXAMPLES:
         {json.dumps(pillar['prompt_examples'], indent=2)}
 
-        Avoid repeating these previous themes: {history[-10:]}
-        
-        The output must be one continuous, highly descriptive paragraph designed for a video diffusion model. 
-        Focus on the physical reality of the scene.
+        PREVIOUS IDEAS (DO NOT REPEAT): {pillar_history}
         """
 
-        user_msg = f"Generate a master-level video prompt based on this seed idea: {seed_idea}"
+        user_msg = f"Seed Idea for {pillar_key}: {seed_idea}"
 
         try:
+            # 5. Call Groq
             chat_completion = self.client.chat.completions.create(
                 messages=[
                     {"role": "system", "content": system_msg},
                     {"role": "user", "content": user_msg}
                 ],
                 model="llama-3.3-70b-versatile",
-                temperature=0.7,
+                temperature=0.75, # Slight randomness for creativity
+                max_tokens=2048   # Enough room for 500+ words
             )
             
-            full_prompt = chat_completion.choices[0].message.content
-            self._save_history(seed_idea)
-            return full_prompt
+            final_prompt = chat_completion.choices[0].message.content
+            
+            # 6. Save this success to history
+            self._save_history(pillar_key, seed_idea)
+            
+            return final_prompt
 
         except Exception as e:
-            return f"Error connecting to Groq: {e}"
+            return f"Error: Groq API failed. Details: {str(e)}"
 
-# Test usage
+# Self-test block (only runs if you run this file directly)
 if __name__ == "__main__":
-    brain = AI_Brain()
-    # Example: Desert survival story
-    result = brain.generate_detailed_prompt("survival", "What if you had to survive 24 hours on only Redbull")
-    print(result)
+    print("AI Brain initialized. Waiting for requests from App.py...")
