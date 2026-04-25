@@ -15,10 +15,9 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# 4. Pre-download LTX-Video Weights (Saves time later)
-# This uses huggingface-cli to grab the model before you start
-pip install huggingface_hub
-python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Lightricks/LTX-Video')"
+# Pre-download SkyReels V1 (7B is high quality)
+python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Skywork/SkyReels-V1-7B')"
+
 
 # 5. Create Folders
 mkdir -p outputs
