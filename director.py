@@ -10,7 +10,7 @@ BACKEND_URL = "http://localhost:8000/generate"
 GROQ_KEY = "gsk_xxxx..." 
 # 30 seconds of video takes time to render. 
 # Set delay to 15-20 mins (900-1200 seconds) so the queue doesn't overflow.
-DELAY_BETWEEN_VIDEOS = 900 
+DELAY_BETWEEN_VIDEOS = 1800
 
 def get_automated_idea(pillar):
     client = Groq(api_key=GROQ_KEY)
