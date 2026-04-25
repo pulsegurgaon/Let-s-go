@@ -1,33 +1,67 @@
 import torch
 import os
-from diffusers import SkyreelsVideoPipeline
-from gtts import gTTS # Install via: pip install gTTS
+import subprocess
+from diffusers import LTXVideoPipeline
+from diffusers.utils import export_to_video
+from gtts import gTTS
+from config import OUTPUT_DIR
 
-class SyncVideoWorker:
+class VideoWorker:
     def __init__(self):
         self.device = "cuda"
-        self.output_dir = "./outputs"
-        # We keep SkyReels for the high-quality base video
-        self.pipe = SkyreelsVideoPipeline.from_pretrained("Skywork/SkyReels-V1-7B", torch_dtype=torch.bfloat16).to(self.device)
+        # Using Distilled for T4 speed
+        self.pipe = LTXVideoPipeline.from_pretrained(
+            "Lightricks/LTX-Video", 
+            torch_dtype=torch.bfloat16
+        ).to(self.device)
+        self.pipe.enable_model_cpu_offload()
 
-    def generate_with_speech(self, prompt, script, pillar_name):
-        # 1. Generate Voice First (Speech Sync needs to know the length!)
-        voice_path = os.path.join(self.output_dir, f"{pillar_name}_voice.mp3")
-        tts = gTTS(text=script, lang='en', slow=False)
+    def generate_voiceover(self, script, pillar):
+        voice_path = "temp_voice.mp3"
+        tts = gTTS(text=script, lang='en')
         tts.save(voice_path)
-        
-        # 2. Generate Video Base (45 seconds)
-        # We use your previous loop logic here to get the full 45s silent clip
-        silent_video_path = self.generate_silent_base(prompt)
+        return voice_path
 
-        # 3. The "Magic" Step: Syncing
-        # In a free T4, we use a subprocess call to a Wav2Lip/SadTalker script
-        final_video_path = self.sync_lips(silent_video_path, voice_path)
+    def generate_video(self, visual_prompt, pillar):
+        segments = []
+        last_frame = None
         
-        return final_video_path
+        # 8 chunks of ~5.5 seconds = ~45 seconds
+        for i in range(8):
+            print(f"--- Scene {i+1}/8 ---")
+            
+            # Continuity trick: use last frame of prev clip as start of next
+            kwargs = {"image": last_frame} if last_frame is not None else {}
+            
+            frames = self.pipe(
+                prompt=visual_prompt,
+                num_frames=121, 
+                num_inference_steps=12, # Distilled speed
+                **kwargs
+            ).frames[0]
+            
+            seg_path = f"seg_{i}.mp4"
+            export_to_video(frames, seg_path)
+            segments.append(seg_path)
+            last_frame = frames[-1] # Save last frame for next chunk
 
-    def sync_lips(self, video, audio):
-        print("--- 👄 Synchronizing Speech and Lip Movements ---")
-        # Logic to call Wav2Lip or similar lightweight sync tool
-        # For a T4, this usually takes 2-3 minutes for a 45s clip.
-        return video # Returns path to the synced file
+        return segments
+
+    def stitch_and_finalize(self, segments, voice_path, pillar):
+        final_path = os.path.join(OUTPUT_DIR, f"{pillar}_{os.urandom(4).hex()}.mp4")
+        list_file = "list.txt"
+        with open(list_file, "w") as f:
+            for s in segments: f.write(f"file '{os.path.abspath(s)}'\n")
+
+        # FFmpeg: Combine clips + Add Voiceover + Loop audio if needed
+        cmd = [
+            "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_file,
+            "-i", voice_path, "-c:v", "libx264", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-shortest", final_path
+        ]
+        subprocess.run(cmd)
+        
+        # Cleanup
+        for s in segments: os.remove(s)
+        os.remove(voice_path)
+        return final_path
