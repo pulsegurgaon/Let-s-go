@@ -1,3 +1,14 @@
+import os
+
+# This ensures that even if you switch GPUs (T4 to A100), 
+# the script always finds your progress on Google Drive.
+DRIVE_BASE = os.path.expanduser("~/google_drive/AI_FACTORY")
+HISTORY_PATH = os.path.join(DRIVE_BASE, "history.json")
+OUTPUT_DIR = os.path.join(DRIVE_BASE, "outputs")
+
+# Create folders on the Drive if they don't exist
+if not os.path.exists(OUTPUT_DIR): 
+    os.makedirs(OUTPUT_DIR, exist_ok=True)DRIVE_ROOT = os.path.join(os.path.expanduser("~"), "google_drive/AI_FACTORY")
 
 
 PILLAR_CONFIG = {
