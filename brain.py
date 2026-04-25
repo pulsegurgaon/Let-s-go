@@ -1,18 +1,25 @@
-import os
 import json
+import os
+from config import HISTORY_PATH, PILLARS
 
 class AI_Brain:
     def __init__(self):
-        # Point this to your Rclone/Google Drive mount point
-        # This way, history.json is SAVED on Google Drive, not the temporary GPU
-        self.history_file = "/content/mydrive/AI_Videos/history.json" 
+        self.history = self._load_history()
 
     def _load_history(self):
-        if os.path.exists(self.history_file):
-            with open(self.history_file, "r") as f:
+        if os.path.exists(HISTORY_PATH):
+            with open(HISTORY_PATH, "r") as f:
                 return json.load(f)
-        return {}
-    
-    def _save_history(self, pillar_key, idea):
-        # Same logic as before, but it writes directly to the Drive
-        # Even if the GPU machine explodes, your history stays in the cloud.
+        return {k: [] for k in PILLARS.keys()}
+
+    def save_to_history(self, pillar, idea):
+        self.history[pillar].append(idea)
+        with open(HISTORY_PATH, "w") as f:
+            json.dump(self.history, f, indent=4)
+
+    def get_next_idea(self, pillar, groq_client):
+        past_ideas = ", ".join(self.history.get(pillar, []))
+        prompt = f"Generate a unique 45-second script for a {pillar} video. Avoid: {past_ideas}. Return only the script and a short visual prompt."
+        
+        # Call Groq here (Standard implementation)
+        # return script, visual_prompt
