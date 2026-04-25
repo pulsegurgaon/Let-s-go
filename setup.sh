@@ -1,31 +1,28 @@
 #!/bin/bash
-
-# Exit on any error
 set -e
 
-echo "--- Starting OVH GPU Setup ---"
+echo "--- 🚀 Starting High-Speed OVH GPU Setup ---"
 
-# 1. Update system and install Python essentials
+# 1. System Updates
 sudo apt-get update
-sudo apt-get install -y python3-pip python3-venv git
+sudo apt-get install -y python3-pip python3-venv git rclone
 
-# 2. Create and activate a Virtual Environment
-# This prevents conflicts with system packages
+# 2. Virtual Environment
 python3 -m venv venv
 source venv/bin/activate
 
-# 3. Install requirements
-# This will look for your requirements.txt in the same folder
-echo "--- Installing Python Libraries (This may take a few minutes) ---"
+# 3. Install Requirements
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# 4. Create necessary folders
+# 4. Pre-download LTX-Video Weights (Saves time later)
+# This uses huggingface-cli to grab the model before you start
+pip install huggingface_hub
+python3 -c "from huggingface_hub import snapshot_download; snapshot_download(repo_id='Lightricks/LTX-Video')"
+
+# 5. Create Folders
 mkdir -p outputs
 
-echo "--- SETUP COMPLETE ---"
-echo "Follow these steps to start your studio:"
-echo "1. Start Backend: source venv/bin/activate && uvicorn app:app --host 0.0.0.0 --port 8000"
-echo "2. Open a new terminal tab."
-echo "3. Start Frontend: source venv/bin/activate && streamlit run frontend.py --server.port 8501"
-echo "------------------------------------------------"
+echo "--- ✅ SETUP COMPLETE ---"
+echo "To link Google Drive, run: rclone config"
+echo "Then start the apps as instructed before."
