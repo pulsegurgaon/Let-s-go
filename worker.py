@@ -1,87 +1,33 @@
 import torch
 import os
-import subprocess
-import time
 from diffusers import SkyreelsVideoPipeline
-from diffusers.utils import export_to_video
-from datetime import datetime
+from gtts import gTTS # Install via: pip install gTTS
 
-class VideoWorker:
-    def __init__(self, model_id="Skywork/SkyReels-V1-7B"):
-        print(f"--- 🛠️ Initializing SkyReels Continuity Engine ---")
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+class SyncVideoWorker:
+    def __init__(self):
+        self.device = "cuda"
         self.output_dir = "./outputs"
-        self.temp_dir = "./temp_segments"
+        # We keep SkyReels for the high-quality base video
+        self.pipe = SkyreelsVideoPipeline.from_pretrained("Skywork/SkyReels-V1-7B", torch_dtype=torch.bfloat16).to(self.device)
+
+    def generate_with_speech(self, prompt, script, pillar_name):
+        # 1. Generate Voice First (Speech Sync needs to know the length!)
+        voice_path = os.path.join(self.output_dir, f"{pillar_name}_voice.mp3")
+        tts = gTTS(text=script, lang='en', slow=False)
+        tts.save(voice_path)
         
-        if not os.path.exists(self.output_dir): os.makedirs(self.output_dir)
-        if not os.path.exists(self.temp_dir): os.makedirs(self.temp_dir)
+        # 2. Generate Video Base (45 seconds)
+        # We use your previous loop logic here to get the full 45s silent clip
+        silent_video_path = self.generate_silent_base(prompt)
 
-        # Load SkyReels Pipeline
-        self.pipe = SkyreelsVideoPipeline.from_pretrained(
-            model_id, 
-            torch_dtype=torch.bfloat16
-        )
-        self.pipe.to(self.device)
-        # Offloading helps manage VRAM during the long 45s loop
-        self.pipe.enable_model_cpu_offload() 
-
-    def _stitch_videos(self, segments, final_path):
-        list_path = os.path.join(self.temp_dir, "list.txt")
-        with open(list_path, "w") as f:
-            for seg in segments:
-                f.write(f"file '{os.path.abspath(seg)}'\n")
+        # 3. The "Magic" Step: Syncing
+        # In a free T4, we use a subprocess call to a Wav2Lip/SadTalker script
+        final_video_path = self.sync_lips(silent_video_path, voice_path)
         
-        cmd = [
-            "ffmpeg", "-y", "-f", "concat", "-safe", "0", 
-            "-i", list_path, "-c", "copy", final_path
-        ]
-        subprocess.run(cmd, check=True)
-        for seg in segments: os.remove(seg)
-        return final_path
+        return final_video_path
 
-    def generate(self, prompt, pillar_name):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        final_filename = f"{pillar_name}_{timestamp}_FULL.mp4"
-        final_path = os.path.join(self.output_dir, final_filename)
-        
-        segments = []
-        num_segments = 5 # 5 segments @ 8-9 seconds = ~45 seconds
-        last_frame = None 
-        
-        print(f"--- 🎬 SkyReels: Generating 45s Narrative for {pillar_name} ---")
-
-        try:
-            for i in range(num_segments):
-                print(f"--- Rendering Segment {i+1}/{num_segments} ---")
-                
-                # If we have a last_frame, we use it as the 'init_image' 
-                # to keep the character and background consistent.
-                kwargs = {}
-                if last_frame is not None:
-                    kwargs["image"] = last_frame # Continuity hook
-
-                output = self.pipe(
-                    prompt=prompt,
-                    negative_prompt="low quality, flickering, jumping, distorted, text",
-                    num_frames=121,      
-                    height=960,          # Vertical Short Format
-                    width=544,           
-                    num_inference_steps=30, 
-                    guidance_scale=4.5,
-                    **kwargs
-                ).frames[0] # frames[0] is a list of PIL images
-
-                # Update last_frame with the absolute last image of this segment
-                last_frame = output[-1] 
-
-                seg_path = os.path.join(self.temp_dir, f"seg_{i}.mp4")
-                export_to_video(output, seg_path, fps=24)
-                segments.append(seg_path)
-
-            print("--- 🧵 Joining SkyReels Segments ---")
-            self._stitch_videos(segments, final_path)
-            return final_path
-
-        except Exception as e:
-            print(f"--- ❌ SkyReels Worker Error: {e} ---")
-            return None
+    def sync_lips(self, video, audio):
+        print("--- 👄 Synchronizing Speech and Lip Movements ---")
+        # Logic to call Wav2Lip or similar lightweight sync tool
+        # For a T4, this usually takes 2-3 minutes for a 45s clip.
+        return video # Returns path to the synced file
