@@ -86,8 +86,8 @@ PILLAR_CONFIG = {
         "logic": "Sequential assembly from raw land to finished luxury interior.",
         "prompt_examples": ["(Use the 500-word Survival structure as the technical template for detail)"]
     }
-}
-
+}   
+)
 VIDEO_SETTINGS = {
     "width": 448,
     "height": 768,
