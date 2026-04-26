@@ -1,7 +1,7 @@
 import os
 
 # Define the single source of truth for your Drive
-DRIVE_ROOT = os.path.join(os.path.expanduser("~"), "google_drive/AI_FACTORY")
+DRIVE_ROOT = "/kaggle/working/google_drive/AI_FACTORY"
 
 # Point all other paths to that root
 HISTORY_PATH = os.path.join(DRIVE_ROOT, "history.json")
@@ -9,7 +9,6 @@ OUTPUT_DIR = os.path.join(DRIVE_ROOT, "outputs")
 
 # Create the folder on your Drive immediately if it's missing
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-(
 
 PILLAR_CONFIG = {
     "survival": {
@@ -87,11 +86,15 @@ PILLAR_CONFIG = {
         "prompt_examples": ["(Use the 500-word Survival structure as the technical template for detail)"]
     }
 }   
-)
+
 VIDEO_SETTINGS = {
     "width": 448,
     "height": 768,
     "fps": 24,
-    "output_dir": "./outputs",
+    "output_dir": OUTPUT_DIR,
     "model_id": "Lightricks/LTX-Video"
 }
+
+# --- GROQ API KEY ---
+# Replace the text below with your actual key inside the quotes
+GROQ_API_KEY = "PASTE_YOUR_KEY_HERE"
