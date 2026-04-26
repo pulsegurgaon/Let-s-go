@@ -10,7 +10,7 @@ OUTPUT_DIR = os.path.join(DRIVE_ROOT, "outputs")
 # Create the folder on your Drive immediately if it's missing
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-PILLAR_CONFIG = {
+PILLARS = {
     "survival": {
         "character": "Translucent glass-skinned humanoid, visible internal ivory skeleton, glowing amber ocular cores.",
         "camera": "Dynamic 9:16 vertical, shifting from extreme wide 24mm isolation to 100mm macro stress shots.",
